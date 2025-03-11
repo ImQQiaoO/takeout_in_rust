@@ -1,8 +1,8 @@
 use crate::constants::{
     order_option_to_string, pdf_direction_to_string, OrderOption, PdfDirection,
 };
+use crate::insertion_order_map::InsertionOrderMap;
 use printpdf::*;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 
@@ -52,7 +52,7 @@ fn truncate_text(text: &str, max_width: f64, font: &IndirectFontRef, font_size: 
 }
 
 pub fn save_as_pdf(
-    all_words: &HashMap<String, String>,
+    all_words: &InsertionOrderMap<String, String>,
     order_choice: &OrderOption,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let direction = select_pdf_direction();
@@ -87,7 +87,7 @@ pub fn save_as_pdf(
             is_closed: false,
             has_fill: false,
             has_stroke: true,
-            is_clipping_path: false,  // 添加缺失的字段
+            is_clipping_path: false, // 添加缺失的字段
         });
 
         let mut x_pos = start_x;

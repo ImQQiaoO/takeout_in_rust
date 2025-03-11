@@ -1,15 +1,17 @@
-use reqwest::blocking::Client;
-use std::collections::HashMap;
-use std::time::Duration;
 mod constants;
 mod pdf_formatter;
+mod insertion_order_map;
+
 use constants::*;
 use csv::Writer;
-use rand::seq::SliceRandom;
+use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Deserializer};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
+use std::time::Duration;
+use insertion_order_map::InsertionOrderMap;
 
 fn deserialize_u32_from_f64<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
@@ -84,23 +86,25 @@ fn fetch_page_data(
     None
 }
 
-fn fetch_all_words(headers: &HashMap<&str, String>) -> HashMap<String, String> {
-    let mut all_words: HashMap<String, String> = HashMap::new();
+fn fetch_all_words(headers: &HashMap<&str, String>) -> InsertionOrderMap<String, String> {
+    let mut all_words: InsertionOrderMap<String, String> = InsertionOrderMap::new();
     let base_url = "https://www.bbdc.cn/api/user-new-word?page={}";
     let first_page_url = base_url.replace("{}", "0");
     if let Some(data) = fetch_page_data(&first_page_url, headers, 3) {
         let total_pages = data.data_body.page_info.total_page;
-        println!("DEBUG -- total pages: {}", total_pages);
         for word_info in data.data_body.word_list {
             let interpret = word_info.interpret.replace('\n', " ");
             all_words.insert(word_info.word, interpret);
         }
         for i in 1..total_pages {
+            let progress_chars = ((i + 1) * 50) / total_pages;
+            let percentage = ((i + 1) * 100) / total_pages;
             print!(
-                "进度：|{:50}| {}%\r",
-                "#".repeat((i as usize * 50) / total_pages as usize),
-                (i as usize * 100) / total_pages as usize
+                "\r进度：|{:50}| {}%",
+                "#".repeat(progress_chars as usize),
+                percentage
             );
+            io::stdout().flush().unwrap();
             let page_url = base_url.replace("{}", &i.to_string());
             if let Some(page_data) = fetch_page_data(&page_url, headers, 3) {
                 for word_info in page_data.data_body.word_list {
@@ -116,7 +120,7 @@ fn fetch_all_words(headers: &HashMap<&str, String>) -> HashMap<String, String> {
     all_words
 }
 
-fn select_output_word_order(all_words: &mut HashMap<String, String>) -> OrderOption {
+fn select_output_word_order(all_words: &mut InsertionOrderMap<String, String>) -> OrderOption {
     println!("请输出导出至文件时的单词顺序（输入数字即可，仅支持单选）：");
     for i in 0..4 {
         println!(
@@ -139,16 +143,11 @@ fn select_output_word_order(all_words: &mut HashMap<String, String>) -> OrderOpt
         match input.trim() {
             "0" => return OrderOption::DefaultOrder,
             "1" => {
-                let mut rng = rand::thread_rng();
-                let mut vec: Vec<_> = all_words.drain().collect();
-                vec.shuffle(&mut rng);
-                *all_words = vec.into_iter().collect();
+                all_words.shuffle();
                 return OrderOption::ShuffleOrder;
             }
             "2" => {
-                let mut vec: Vec<_> = all_words.drain().collect();
-                vec.sort_by(|a, b| a.0.cmp(&b.0));
-                *all_words = vec.into_iter().collect();
+                all_words.sort_by_key();
                 return OrderOption::AlphabeticalOrder;
             }
             "3" => return OrderOption::NoExport,
@@ -175,7 +174,7 @@ fn select_format() -> FormatOption {
 }
 
 fn save_as_csv(
-    all_words: &HashMap<String, String>,
+    all_words: &InsertionOrderMap<String, String>,
     order_choice: &OrderOption,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let current_date = chrono::Local::now().format("%Y_%m_%d").to_string();
@@ -202,10 +201,11 @@ fn main() {
     let headers: HashMap<&str, String> = HashMap::from([("cookie", cookie.trim().to_string())]);
 
     let mut all_words = fetch_all_words(&headers);
+    println!("单词获取成功，共 {} 个单词。", all_words.len());
 
     loop {
         let order_choice = select_output_word_order(&mut all_words);
-        for (word, interpret) in &all_words {
+        for (word, interpret) in all_words.iter() {
             println!("{} {}", word, interpret);
         }
 
