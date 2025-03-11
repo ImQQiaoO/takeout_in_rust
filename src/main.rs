@@ -1,17 +1,17 @@
 mod constants;
-mod pdf_formatter;
+mod csv_formatter;
 mod insertion_order_map;
+mod pdf_formatter;
 
-use constants::*;
-use csv::Writer;
+use crate::constants::*;
+use crate::csv_formatter::save_as_csv;
+use crate::insertion_order_map::InsertionOrderMap;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
-use std::fs::File;
 use std::io::{self, Write};
 use std::time::Duration;
-use insertion_order_map::InsertionOrderMap;
 
 fn deserialize_u32_from_f64<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
@@ -173,25 +173,6 @@ fn select_format() -> FormatOption {
     }
 }
 
-fn save_as_csv(
-    all_words: &InsertionOrderMap<String, String>,
-    order_choice: &OrderOption,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let current_date = chrono::Local::now().format("%Y_%m_%d").to_string();
-    let file_name = format!(
-        "words-{}-{}.csv",
-        current_date,
-        order_option_to_string(order_choice)
-    );
-    let file = File::create(&file_name)?;
-    let mut writer = Writer::from_writer(file);
-    for (index, (word, interpret)) in all_words.iter().enumerate() {
-        writer.write_record(&[&(index + 1).to_string(), word, interpret])?;
-    }
-    println!("CSV 文件已保存至: {}", file_name);
-    Ok(())
-}
-
 fn main() {
     println!("欢迎使用不背单词导出工具！");
     print!("请输入您的不背单词的cookie，然后按回车键继续...\n");
@@ -208,33 +189,25 @@ fn main() {
         for (word, interpret) in all_words.iter() {
             println!("{} {}", word, interpret);
         }
-
-        if matches!(order_choice, OrderOption::NoExport) {
-            if input("输入[q]退出程序，输入其他任意内容按回车键继续保存：").to_lowercase() == "q"
-            {
-                break;
-            }
-            continue;
-        }
-
-        let format_choice = select_format();
-        match format_choice {
-            FormatOption::Csv => {
-                if let Err(e) = save_as_csv(&all_words, &order_choice) {
-                    println!("保存 CSV 失败: {}", e);
-                } else {
-                    println!("此次保存成功！");
+        if order_choice != OrderOption::NoExport {
+            let format_choice = select_format();
+            match format_choice {
+                FormatOption::Csv => {
+                    if let Err(e) = save_as_csv(&all_words, &order_choice) {
+                        println!("保存 CSV 失败: {}", e);
+                    } else {
+                        println!("此次保存成功！");
+                    }
                 }
-            }
-            FormatOption::Pdf => {
-                if let Err(e) = pdf_formatter::save_as_pdf(&all_words, &order_choice) {
-                    println!("保存 PDF 失败: {}", e);
-                } else {
-                    println!("此次保存成功！");
+                FormatOption::Pdf => {
+                    if let Err(e) = pdf_formatter::save_as_pdf(&all_words, &order_choice) {
+                        println!("保存 PDF 失败: {}", e);
+                    } else {
+                        println!("此次保存成功！");
+                    }
                 }
             }
         }
-
         if input("输入[q]退出程序，输入其他任意内容按回车键继续保存：").to_lowercase() == "q"
         {
             break;
