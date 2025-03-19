@@ -3,3 +3,6 @@
 .vscode
 *.csv
 *.pdf
+dependencies/*.TTC
+dependencies/*.csv
+!/dependencies/README.md
