@@ -10,15 +10,17 @@ use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
+use csv::Reader;
 use std::io::{self, Write};
 use std::time::Duration;
+
 
 fn deserialize_u32_from_f64<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let f = f64::deserialize(deserializer)?; // 解析为 f64
-    Ok(f as u32) // 转换为 u32，丢弃小数部分
+    let f = f64::deserialize(deserializer)?;
+    Ok(f as u32)
 }
 
 #[derive(Deserialize)]
@@ -30,8 +32,7 @@ struct PageInfo {
 
 #[derive(Deserialize)]
 struct WordInfo {
-    word: String,
-    interpret: String,
+    word: String
 }
 
 #[derive(Deserialize)]
@@ -93,8 +94,7 @@ fn fetch_all_words(headers: &HashMap<&str, String>) -> InsertionOrderMap<String,
     if let Some(data) = fetch_page_data(&first_page_url, headers, 3) {
         let total_pages = data.data_body.page_info.total_page;
         for word_info in data.data_body.word_list {
-            let interpret = word_info.interpret.replace('\n', " ");
-            all_words.insert(word_info.word, interpret);
+            all_words.insert(word_info.word, String::from("-"));
         }
         for i in 1..total_pages {
             let progress_chars = ((i + 1) * 50) / total_pages;
@@ -108,8 +108,7 @@ fn fetch_all_words(headers: &HashMap<&str, String>) -> InsertionOrderMap<String,
             let page_url = base_url.replace("{}", &i.to_string());
             if let Some(page_data) = fetch_page_data(&page_url, headers, 3) {
                 for word_info in page_data.data_body.word_list {
-                    let interpret = word_info.interpret.replace('\n', " ");
-                    all_words.insert(word_info.word, interpret);
+                    all_words.insert(word_info.word, String::from("-"));
                 }
             } else {
                 break;
@@ -173,16 +172,47 @@ fn select_format() -> FormatOption {
     }
 }
 
+fn load_dictionary() -> HashMap<String, String> {
+    let mut dictionary: HashMap<String, String> = HashMap::new();
+    let mut rdr = Reader::from_path("./dependencies/ultimate.csv").unwrap();
+    for result in rdr.deserialize::<Vec<String>>() {
+        let record = result.unwrap();
+        if record.len() >= 4 {
+            dictionary.insert(record[0].clone(), record[3].clone());
+        }
+    }
+    dictionary
+}
+
+fn consult_dictionary(all_words: &mut InsertionOrderMap<String, String>) {
+    println!("正在查询字典...");
+    let dictionary: HashMap<String, String> = load_dictionary();
+    let keys_to_update: Vec<String> = all_words.keys().cloned().collect();
+    for k in keys_to_update {
+        if let Some(value) = dictionary.get(&k) {
+            all_words.insert(k, value.clone());
+        }
+    }
+}
+
 fn main() {
     println!("欢迎使用不背单词导出工具！");
     print!("请输入您的不背单词的cookie，然后按回车键继续...\n");
+
     io::stdout().flush().unwrap();
     let mut cookie: String = String::new();
     io::stdin().read_line(&mut cookie).unwrap();
-    let headers: HashMap<&str, String> = HashMap::from([("cookie", cookie.trim().to_string())]);
-
-    let mut all_words = fetch_all_words(&headers);
+    let headers: HashMap<&str, String> = HashMap::from([
+        ("cookie", cookie.trim().to_string()),
+        ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36".to_string()),
+        ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string()),
+        ("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7".to_string()),
+        ("Connection", "keep-alive".to_string()),
+        ("Upgrade-Insecure-Requests", "1".to_string()),
+    ]);
+    let mut all_words: InsertionOrderMap<String, String> = fetch_all_words(&headers);
     println!("单词获取成功，共 {} 个单词。", all_words.len());
+    consult_dictionary(&mut all_words);
 
     loop {
         let order_choice = select_output_word_order(&mut all_words);
