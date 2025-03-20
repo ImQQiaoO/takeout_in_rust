@@ -1,0 +1,1 @@
+此仓库为[BubeiDanci_takeout](https://github.com/ImQQiaoO/BubeiDanci_takeout)的Rust实现，功能暂不完善。请移步到原仓库进行使用。
