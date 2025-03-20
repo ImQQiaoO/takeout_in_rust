@@ -99,6 +99,7 @@ fn fetch_all_words(headers: &HashMap<&str, String>) -> InsertionOrderMap<String,
         for i in 1..total_pages {
             let progress_chars = ((i + 1) * 50) / total_pages;
             let percentage = ((i + 1) * 100) / total_pages;
+            std::thread::sleep(Duration::from_secs_f32(rand::random::<f32>() * 3.0 + 2.0));
             print!(
                 "\r进度：|{:50}| {}%",
                 "#".repeat(progress_chars as usize),
