@@ -57,7 +57,7 @@ impl<K: Eq + Ord + Clone + std::hash::Hash, V> InsertionOrderMap<K, V> {
     pub fn shuffle(&mut self) {
         let mut rng = rand::thread_rng();
         self.data.shuffle(&mut rng);
-        
+        self.indices.clear();
         for (i, (k, _)) in self.data.iter().enumerate() {
             self.indices.insert(k.clone(), i);
         }
@@ -65,7 +65,7 @@ impl<K: Eq + Ord + Clone + std::hash::Hash, V> InsertionOrderMap<K, V> {
 
     pub fn sort_by_key(&mut self) {
         self.data.sort_by(|a, b| a.0.cmp(&b.0));
-        
+        self.indices.clear();
         for (i, (k, _)) in self.data.iter().enumerate() {
             self.indices.insert(k.clone(), i);
         }
