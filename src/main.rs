@@ -10,7 +10,9 @@ use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
-use csv::Reader;
+use std::fs::File;
+use std::io::BufReader;
+use csv::ReaderBuilder;
 use std::io::{self, Write};
 use std::time::Duration;
 
@@ -175,18 +177,21 @@ fn select_format() -> FormatOption {
 
 fn load_dictionary() -> HashMap<String, String> {
     let mut dictionary: HashMap<String, String> = HashMap::new();
-    let mut rdr = Reader::from_path("./dependencies/ultimate.csv").unwrap();
-    for result in rdr.deserialize::<Vec<String>>() {
+    let file = File::open("./dependencies/ultimate.csv").unwrap();
+    let rdr = BufReader::new(file);
+    let mut rdr = ReaderBuilder::new()
+        .has_headers(false)
+        .from_reader(rdr);
+    for result in rdr.records() {
         let record = result.unwrap();
         if record.len() >= 4 {
-            dictionary.insert(record[0].clone(), record[3].clone());
+            dictionary.insert(record[0].to_string(), record[3].to_string());
         }
     }
     dictionary
 }
 
 fn consult_dictionary(all_words: &mut InsertionOrderMap<String, String>) {
-    println!("正在查询字典...");
     let dictionary: HashMap<String, String> = load_dictionary();
     let keys_to_update: Vec<String> = all_words.keys().cloned().collect();
     for k in keys_to_update {
