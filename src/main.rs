@@ -196,7 +196,8 @@ fn consult_dictionary(all_words: &mut InsertionOrderMap<String, String>) {
     let keys_to_update: Vec<String> = all_words.keys().cloned().collect();
     for k in keys_to_update {
         if let Some(value) = dictionary.get(&k) {
-            all_words.insert(k, value.clone());
+            let updated_value = value.replace("\\n", " ");
+            all_words.insert(k, updated_value);
         }
     }
 }
